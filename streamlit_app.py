@@ -15,7 +15,7 @@ import requests
 # [firebase]
 # type="service_account"
 # ...
-DATABASE_URL = st.secrets["https://project-final-463aa-default-rtdb.europe-west1.firebasedatabase.app/"]
+DATABASE_URL = st.secrets["DATABASE_URL"]
 
 # 🔥 URL Node-RED (HTTP endpoint)
 # ⚠️ 1880 = Node-RED HTTP (1883 = MQTT)
