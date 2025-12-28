@@ -43,10 +43,17 @@ if not firebase_admin._apps:
 # =========================
 # PAGE CONFIG + CSS
 # =========================
-st.set_page_config(page_title="Projet final A304_A311
- Systèmes Embarqués II et Industrie 4.0 
-Système IOT Multizone
-", page_icon="📡", layout="wide")
+st.set_page_config(
+    page_title=(
+        "Projet final A304_A311 | "
+        "Systèmes Embarqués II et Industrie 4.0 | "
+        "Système IOT Multizone | "
+        "2025-2026 | "
+        "DIEMI MBUDI Calvin Node 2"
+    ),
+    page_icon="📡",
+    layout="wide",
+)
 
 CUSTOM_CSS = """
 <style>
