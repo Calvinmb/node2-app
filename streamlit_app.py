@@ -256,7 +256,12 @@ st.sidebar.caption("Endpoint Node-RED attendu : POST /api/node2/cmd")
 # =========================
 colA, colB = st.columns([3, 1])
 with colA:
-    st.title("📡 Tableau de bord IoT — Node2")
+    st.title(""Projet final A304_A311 | "
+        "Systèmes Embarqués II et Industrie 4.0 | "
+        "Système IOT Multizone | "
+        "2025-2026 | "
+        "DIEMI MBUDI Calvin Node"
+    ")
     st.caption("Données temps réel (Firebase RTDB) + commandes LED RGB / mode nuit / force publish.")
 with colB:
     st.markdown(
