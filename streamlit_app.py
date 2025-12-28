@@ -12,13 +12,13 @@ import requests
 # =========================
 # Dans Streamlit Cloud -> Settings -> Secrets :
 # DATABASE_URL = "https://....firebasedatabase.app/"
+# NODE_RED_URL = "http://...:1880/api/node2/cmd"
 # [firebase]
 # type="service_account"
 # ...
 DATABASE_URL = st.secrets["DATABASE_URL"]
 
-#  URL Node-RED (HTTP endpoint)
-# 1880 = Node-RED HTTP (1883 = MQTT)
+# URL Node-RED (HTTP endpoint)
 NODE_RED_URL = st.secrets.get("NODE_RED_URL", "http://172.161.163.190:1880/api/node2/cmd")
 
 # Chemins Firebase
@@ -37,7 +37,7 @@ if "private_key" in service_account_info and isinstance(service_account_info["pr
     service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
 
 if not firebase_admin._apps:
-    cred = credentials.Certificate(service_account_info)  #  dict, pas un fichier
+    cred = credentials.Certificate(service_account_info)  # dict, pas un fichier
     firebase_admin.initialize_app(cred, {"databaseURL": DATABASE_URL})
 
 # =========================
@@ -109,6 +109,51 @@ section[data-testid="stSidebar"]{
   background: rgba(10,16,31,0.92);
   border-right: 1px solid rgba(148,163,184,0.12);
 }
+
+/* ===== TITRE : bandeau blanc, texte noir, centré ===== */
+.title-wrap{
+  background: rgba(255,255,255,0.92);
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(0,0,0,0.08);
+  text-align: center;
+  margin: 6px 0 14px 0;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.18);
+}
+
+.main-title{
+  font-weight: 900;
+  font-size: 1.85rem;   /* diminue à 1.6rem si tu veux plus petit */
+  color: #000000 !important;
+  line-height: 1.2;
+}
+
+.sub-title{
+  color: #111827 !important;
+  opacity: 0.75;
+  font-size: 0.95rem;
+  margin-top: 6px;
+}
+
+/* L’encart refresh à droite un peu plus clair */
+.refresh-card{
+  background: rgba(255,255,255,0.85) !important;
+  border: 1px solid rgba(0,0,0,0.08) !important;
+  color: #000000 !important;
+}
+
+/* ===== ICÔNES STREAMLIT (header) EN NOIR ===== */
+[data-testid="stToolbar"] svg,
+[data-testid="stHeader"] svg{
+  color:#000000 !important;
+  fill:#000000 !important;
+  opacity: 1 !important;
+}
+
+[data-testid="stToolbar"] button,
+[data-testid="stHeader"] button{
+  color:#000000 !important;
+}
 </style>
 """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
@@ -171,7 +216,9 @@ def get_history_as_df(limit=120):
         def to_dt(val):
             try:
                 if isinstance(val, (int, float)):
-                    return datetime.fromtimestamp(val)
+                    # Si tu enregistres en millisecondes, décommente la ligne suivante et commente celle d'après
+                    # return datetime.fromtimestamp(float(val) / 1000.0)
+                    return datetime.fromtimestamp(float(val) / 1000.0) if float(val) > 1e12 else datetime.fromtimestamp(float(val))
                 return pd.to_datetime(val)
             except Exception:
                 return pd.NaT
@@ -252,20 +299,29 @@ st.sidebar.markdown("---")
 st.sidebar.caption("Endpoint Node-RED attendu : POST /api/node2/cmd")
 
 # =========================
-# HEADER
+# HEADER (Titre centré, noir, fond blanc)
 # =========================
+st.markdown(
+    """
+    <div class="title-wrap">
+      <div class="main-title">
+        Projet final A304_A311 | Systèmes Embarqués II et Industrie 4.0 |
+        Système IOT Multizone | 2025-2026 | DIEMI MBUDI Calvin Node 2
+      </div>
+      <div class="sub-title">
+        Données temps réel (Firebase RTDB) + commandes LED RGB / mode nuit / force publish.
+      </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# Encadré rafraîchissement à droite
 colA, colB = st.columns([3, 1])
-with colA:
-    st.title("Projet final A304_A311 | "
-        "Systèmes Embarqués II et Industrie 4.0 | "
-        "Système IOT Multizone | "
-        "2025-2026 | "
-        "DIEMI MBUDI Calvin Node")
-    st.caption("Données temps réel (Firebase RTDB) + commandes LED RGB / mode nuit / force publish.")
 with colB:
     st.markdown(
-        f'<div class="card">🔄 Rafraîchissement auto: <b>{int(REFRESH_MS/1000)}s</b><br/>'
-        f'<span style="color:#94a3b8">Firebase RTDB</span></div>',
+        f'<div class="card refresh-card">🔄 Rafraîchissement auto: <b>{int(REFRESH_MS/1000)}s</b><br/>'
+        f'<span style="color:#111827;opacity:.7">Firebase RTDB</span></div>',
         unsafe_allow_html=True
     )
 
