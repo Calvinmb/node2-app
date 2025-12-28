@@ -17,8 +17,8 @@ import requests
 # ...
 DATABASE_URL = st.secrets["DATABASE_URL"]
 
-# 🔥 URL Node-RED (HTTP endpoint)
-# ⚠️ 1880 = Node-RED HTTP (1883 = MQTT)
+#  URL Node-RED (HTTP endpoint)
+# 1880 = Node-RED HTTP (1883 = MQTT)
 NODE_RED_URL = st.secrets.get("NODE_RED_URL", "http://172.161.163.190:1880/api/node2/cmd")
 
 # Chemins Firebase
@@ -37,7 +37,7 @@ if "private_key" in service_account_info and isinstance(service_account_info["pr
     service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
 
 if not firebase_admin._apps:
-    cred = credentials.Certificate(service_account_info)  # ✅ dict, pas un fichier
+    cred = credentials.Certificate(service_account_info)  #  dict, pas un fichier
     firebase_admin.initialize_app(cred, {"databaseURL": DATABASE_URL})
 
 # =========================
