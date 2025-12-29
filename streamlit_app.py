@@ -29,15 +29,19 @@ PATH_CMD     = "node2/commands"   # optionnel
 REFRESH_MS   = 2000  # 2s
 
 # =========================
-# INIT FIREBASE (1 fois)
-# =========================
 service_account_info = dict(st.secrets["firebase"])
-# au cas où la clé privée arrive avec \n échappés
 if "private_key" in service_account_info and isinstance(service_account_info["private_key"], str):
     service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
 
-if not firebase_admin._apps:
-    cred = credentials.Certificate(service_account_info)  #  dict, pas un fichier
+cred = credentials.Certificate(service_account_info)
+
+try:
+    app = firebase_admin.get_app()
+    # si l'URL a changé ou app initialisée "mal", on recrée
+    if app.options.get("databaseURL") != DATABASE_URL:
+        firebase_admin.delete_app(app)
+        firebase_admin.initialize_app(cred, {"databaseURL": DATABASE_URL})
+except ValueError:
     firebase_admin.initialize_app(cred, {"databaseURL": DATABASE_URL})
 
 # =========================
