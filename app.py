@@ -162,7 +162,7 @@ def get_history_as_df(limit=200):
     df = pd.DataFrame(rows)
 
     # ✅ Colonnes attendues (match Node-RED : light)
-    for c in ["temperature", "humidity", "light", "sound", "timestamp"]:
+    for c in ["temperature", "humidity", "luminosity", "sound", "timestamp"]:
         if c not in df.columns:
             df[c] = None
 
