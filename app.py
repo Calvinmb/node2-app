@@ -270,7 +270,7 @@ temp = safe_float(latest.get("temperature"))
 hum  = safe_float(latest.get("humidity"))
 
 # ✅ Node-RED écrit "light" (pas luminosity)
-ldr  = safe_int(latest.get("light"))
+ldr  = safe_int(latest.get("luminosity"))
 
 son  = safe_int(latest.get("sound"))
 
@@ -327,7 +327,7 @@ else:
     c3, c4 = st.columns(2)
     with c3:
         # ✅ Node-RED écrit "light"
-        fig = px.line(df, x="dt", y="light", title="Luminosité")
+        fig = px.line(df, x="dt", y="luminosity", title="Luminosité")
         st.plotly_chart(fig, use_container_width=True)
     with c4:
         fig = px.line(df, x="dt", y="sound", title="Son")
