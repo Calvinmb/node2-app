@@ -10,34 +10,26 @@ import requests
 # =========================
 # CONFIG (via Streamlit Secrets)
 # =========================
-# Dans Streamlit Cloud -> Settings -> Secrets :
-# DATABASE_URL = "https://....firebasedatabase.app/"
-# [firebase]
-# type="service_account"
-# ...
 DATABASE_URL = st.secrets["DATABASE_URL"]
 
-#  URL Node-RED (HTTP endpoint)
-# 1880 = Node-RED HTTP (1883 = MQTT)
+# URL Node-RED (HTTP endpoint)
 NODE_RED_URL = st.secrets.get("NODE_RED_URL", "http://172.161.163.190:1880/api/node2/cmd")
 
-# Chemins Firebase
+# ✅ Chemins Firebase (d’après ta capture)
 PATH_LATEST  = "node2/latest"
 PATH_HISTORY = "node2/history"
-PATH_CMD     = "node2/commands"   # optionnel
 
-REFRESH_MS   = 2000  # 2s
+REFRESH_MS = 2000  # 2s
 
 # =========================
 # INIT FIREBASE (1 fois)
 # =========================
 service_account_info = dict(st.secrets["firebase"])
-# au cas où la clé privée arrive avec \n échappés
 if "private_key" in service_account_info and isinstance(service_account_info["private_key"], str):
     service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
 
 if not firebase_admin._apps:
-    cred = credentials.Certificate(service_account_info)  #  dict, pas un fichier
+    cred = credentials.Certificate(service_account_info)
     firebase_admin.initialize_app(cred, {"databaseURL": DATABASE_URL})
 
 # =========================
@@ -60,7 +52,6 @@ CUSTOM_CSS = """
 :root{
   --bg:#0b1220;
   --card:#101a2f;
-  --card2:#0f172a;
   --text:#e5e7eb;
   --muted:#94a3b8;
   --accent:#60a5fa;
@@ -131,6 +122,16 @@ def safe_int(x):
     except Exception:
         return None
 
+def ts_to_dt(val):
+    """✅ Convertit timestamp en datetime (supporte ms et secondes)."""
+    try:
+        v = float(val)
+        if v > 1e12:      # ms (Date.now)
+            v = v / 1000.0
+        return datetime.fromtimestamp(v)
+    except Exception:
+        return None
+
 def compute_status(t, lum, snd):
     TEMP_HIGH  = 30.0
     LUM_NIGHT  = 1200
@@ -147,62 +148,49 @@ def compute_status(t, lum, snd):
     return "OK", "ok"
 
 def get_latest():
-    ref = db.reference(PATH_LATEST)
-    return ref.get() or {}
+    return db.reference(PATH_LATEST).get() or {}
 
-def get_history_as_df(limit=120):
-    ref = db.reference(PATH_HISTORY)
-    hist = ref.get()
+def get_history_as_df(limit=200):
+    hist = db.reference(PATH_HISTORY).get()
     if not hist:
         return None
 
-    rows = []
-    for _, v in hist.items():
-        if isinstance(v, dict):
-            rows.append(v)
-
+    rows = [v for v in hist.values() if isinstance(v, dict)]
     if not rows:
         return None
 
     df = pd.DataFrame(rows)
 
-    # Gestion timestamp
-    if "timestamp" in df.columns:
-        def to_dt(val):
-            try:
-                if isinstance(val, (int, float)):
-                    return datetime.fromtimestamp(val)
-                return pd.to_datetime(val)
-            except Exception:
-                return pd.NaT
-        df["dt"] = df["timestamp"].apply(to_dt)
-
-    elif "ts" in df.columns:
-        def to_dt_ms(val):
-            try:
-                return datetime.fromtimestamp(float(val) / 1000.0)
-            except Exception:
-                return pd.NaT
-        df["dt"] = df["ts"].apply(to_dt_ms)
-
-    else:
-        df["dt"] = pd.NaT
-
-    # Colonnes attendues
-    for c in ["temperature", "humidity", "luminosity", "sound"]:
+    # ✅ Colonnes attendues (match Node-RED : light)
+    for c in ["temperature", "humidity", "light", "sound", "timestamp"]:
         if c not in df.columns:
             df[c] = None
 
-    df = df.sort_values("dt", na_position="last").tail(limit)
+    # ✅ Timestamp ms -> dt
+    df["dt"] = df["timestamp"].apply(ts_to_dt)
+    df = df.dropna(subset=["dt"]).sort_values("dt").tail(limit)
+
     return df
 
-# ✅ Commande via Node-RED HTTP -> MQTT
 def send_command(payload: dict):
     try:
         r = requests.post(NODE_RED_URL, json=payload, timeout=5)
         return r.status_code, r.text
     except Exception as e:
         return None, str(e)
+
+def kpi_card(title, value, suffix="", sub=""):
+    val = "—" if value is None else f"{value}{suffix}"
+    st.markdown(
+        f"""
+        <div class="card">
+          <div class="kpi-title">{title}</div>
+          <div class="kpi-value">{val}</div>
+          <div class="kpi-sub">{sub}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 # =========================
 # SIDEBAR COMMANDES
@@ -248,6 +236,9 @@ if st.sidebar.button("⚡ Force envoi données"):
     else:
         st.sidebar.error(f"Erreur: {code} / {txt}")
 
+# ✅ DEBUG toggle (très utile)
+debug = st.sidebar.toggle("Afficher DEBUG Firebase", value=False)
+
 st.sidebar.markdown("---")
 st.sidebar.caption("Endpoint Node-RED attendu : POST /api/node2/cmd")
 
@@ -256,11 +247,7 @@ st.sidebar.caption("Endpoint Node-RED attendu : POST /api/node2/cmd")
 # =========================
 colA, colB = st.columns([3, 1])
 with colA:
-    st.title("Projet final A304_A311 | "
-        "Systèmes Embarqués II et Industrie 4.0 | "
-        "Système IOT Multizone | "
-        "2025-2026 | "
-        "DIEMI MBUDI Calvin Node")
+    st.title("Projet final A304_A311 | Système IOT Multizone | Node 2")
     st.caption("Données temps réel (Firebase RTDB) + commandes LED RGB / mode nuit / force publish.")
 with colB:
     st.markdown(
@@ -274,11 +261,21 @@ with colB:
 # =========================
 latest = get_latest()
 
+if debug:
+    st.sidebar.write("PATH_LATEST:", PATH_LATEST)
+    st.sidebar.write("PATH_HISTORY:", PATH_HISTORY)
+    st.sidebar.write("latest:", latest)
+
 temp = safe_float(latest.get("temperature"))
 hum  = safe_float(latest.get("humidity"))
-ldr  = safe_int(latest.get("luminosity"))
+
+# ✅ Node-RED écrit "light" (pas luminosity)
+ldr  = safe_int(latest.get("light"))
+
 son  = safe_int(latest.get("sound"))
-ts   = latest.get("timestamp", latest.get("ts", None))
+
+ts_raw = latest.get("timestamp", None)
+ts_dt = ts_to_dt(ts_raw) if ts_raw is not None else None
 
 status_txt, status_cls = compute_status(temp, ldr, son)
 
@@ -286,19 +283,6 @@ status_txt, status_cls = compute_status(temp, ldr, son)
 # KPI ROW
 # =========================
 k1, k2, k3, k4, k5 = st.columns([1.2, 1.2, 1.2, 1.2, 1.2])
-
-def kpi_card(title, value, suffix="", sub=""):
-    val = "—" if value is None else f"{value}{suffix}"
-    st.markdown(
-        f"""
-        <div class="card">
-          <div class="kpi-title">{title}</div>
-          <div class="kpi-value">{val}</div>
-          <div class="kpi-sub">{sub}</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
 
 with k1:
     kpi_card("Température", None if temp is None else round(temp, 1), " °C", "Capteur DHT11")
@@ -310,7 +294,7 @@ with k4:
     kpi_card("Son", son, "", "KY-038 (analog)")
 with k5:
     badge_html = f'<span class="badge {status_cls}">STATUT: {status_txt}</span>'
-    ts_txt = "Aucun" if not ts else str(ts)
+    ts_txt = "Aucun" if ts_dt is None else ts_dt.strftime("%Y-%m-%d %H:%M:%S")
     st.markdown(
         f"""
         <div class="card">
@@ -328,9 +312,9 @@ with k5:
 st.markdown("<hr/>", unsafe_allow_html=True)
 st.subheader("📈 Historique (si disponible)")
 
-df = get_history_as_df(limit=120)
+df = get_history_as_df(limit=200)
 if df is None or df.empty:
-    st.info("Aucun historique trouvé dans Firebase (node2/history). Tu peux garder uniquement latest, ou activer l'historique côté Node-RED.")
+    st.info("Aucun historique trouvé dans Firebase (node2/history).")
 else:
     c1, c2 = st.columns(2)
     with c1:
@@ -342,7 +326,8 @@ else:
 
     c3, c4 = st.columns(2)
     with c3:
-        fig = px.line(df, x="dt", y="luminosity", title="Luminosité")
+        # ✅ Node-RED écrit "light"
+        fig = px.line(df, x="dt", y="light", title="Luminosité")
         st.plotly_chart(fig, use_container_width=True)
     with c4:
         fig = px.line(df, x="dt", y="sound", title="Son")
