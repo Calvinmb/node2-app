@@ -1,44 +1,25 @@
-# app.py
-import time
-from datetime import datetime
-
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
-
 import firebase_admin
 from firebase_admin import credentials, db
-
 import pandas as pd
 import plotly.express as px
+from datetime import datetime
 import requests
-
 
 # =========================
 # CONFIG (via Streamlit Secrets)
 # =========================
-# ✅ Realtime Database URL (obligatoire)
 DATABASE_URL = st.secrets["DATABASE_URL"]
 
-# ✅ Mode d'envoi des commandes :
-# - "http"    : Streamlit -> HTTP POST -> Node-RED (sur Azure) -> MQTT -> ESP32
-# - "firebase": Streamlit écrit une commande dans Firebase, Node-RED lit et publie MQTT
-COMMAND_MODE = st.secrets.get("COMMAND_MODE", "http").lower().strip()
+# URL Node-RED (HTTP endpoint)
+NODE_RED_URL = st.secrets.get("NODE_RED_URL", "http://172.161.163.190:1880/api/node2/cmd")
 
-# ✅ URL Node-RED HTTP (IMPORTANT : port 1880, pas 1883)
-# 1883 = MQTT Broker ; 1880 = Node-RED Web/HTTP
-NODE_RED_URL = st.secrets.get("NODE_RED_URL", "").strip()
-
-# ✅ (Optionnel) Token de sécurité si tu veux protéger ton endpoint HTTP Node-RED
-# Dans Node-RED tu vérifies ce header (X-API-KEY) avant d'accepter la commande
-API_KEY = st.secrets.get("NODE_RED_API_KEY", "").strip()
-
-# ✅ Chemins Firebase
-PATH_LATEST = "node2/latest"
+# ✅ Chemins Firebase (d’après ta capture)
+PATH_LATEST  = "node2/latest"
 PATH_HISTORY = "node2/history"
-PATH_CMD = "node2/cmd"  # utilisé si COMMAND_MODE="firebase"
 
 REFRESH_MS = 2000  # 2s
-
 
 # =========================
 # INIT FIREBASE (1 fois)
@@ -50,7 +31,6 @@ if "private_key" in service_account_info and isinstance(service_account_info["pr
 if not firebase_admin._apps:
     cred = credentials.Certificate(service_account_info)
     firebase_admin.initialize_app(cred, {"databaseURL": DATABASE_URL})
-
 
 # =========================
 # PAGE CONFIG + CSS
@@ -71,9 +51,12 @@ CUSTOM_CSS = """
 <style>
 :root{
   --bg:#0b1220;
+
+  /* ✅ Bleu foncé */
   --blueDark:#0b2a5b;
   --blueCard:#0f3a75;
   --blueCard2:#0b2f63;
+
   --text:#e5e7eb;
   --muted:#cbd5e1;
   --accent:#60a5fa;
@@ -82,18 +65,22 @@ CUSTOM_CSS = """
   --bad:#ef4444;
   --violet:#a855f7;
 }
+
 .main { background: linear-gradient(135deg, #0b1220 0%, #0b1630 55%, #0b1220 100%); }
 .block-container { padding-top: 1.4rem; }
 
+/* ✅ TITRE EN BLEU FONCÉ + GRAS */
 h1 {
   color: var(--blueDark) !important;
   font-weight: 900 !important;
   letter-spacing: 0.3px;
 }
 
+/* sous-titres */
 h2,h3 { color: var(--text) !important; }
 p,div,span,label { color: var(--text); }
 
+/* ✅ CARTES KPI EN BLEU */
 .card{
   background: linear-gradient(135deg, var(--blueCard) 0%, var(--blueCard2) 100%);
   border: 1px solid rgba(96,165,250,0.35);
@@ -106,6 +93,7 @@ p,div,span,label { color: var(--text); }
 .kpi-value{ font-size: 2rem; font-weight: 900; color: #ffffff; line-height: 1; }
 .kpi-sub{ font-size: 0.85rem; color: rgba(255,255,255,0.75); margin-top: 6px; }
 
+/* Badges: on garde */
 .badge{
   display:inline-block;
   padding: 6px 10px;
@@ -129,11 +117,11 @@ section[data-testid="stSidebar"]{
 }
 </style>
 """
+
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # Auto-refresh
 st_autorefresh(interval=REFRESH_MS, key="refresh")
-
 
 # =========================
 # HELPERS
@@ -144,28 +132,25 @@ def safe_float(x):
     except Exception:
         return None
 
-
 def safe_int(x):
     try:
         return int(x)
     except Exception:
         return None
 
-
 def ts_to_dt(val):
-    """Convertit timestamp en datetime (supporte ms et secondes)."""
+    """✅ Convertit timestamp en datetime (supporte ms et secondes)."""
     try:
         v = float(val)
-        if v > 1e12:  # ms (Date.now)
+        if v > 1e12:      # ms (Date.now)
             v = v / 1000.0
         return datetime.fromtimestamp(v)
     except Exception:
         return None
 
-
 def compute_status(t, lum, snd):
-    TEMP_HIGH = 30.0
-    LUM_NIGHT = 1200
+    TEMP_HIGH  = 30.0
+    LUM_NIGHT  = 1200
     SOUND_HIGH = 2500
 
     if t is None or lum is None or snd is None:
@@ -178,10 +163,8 @@ def compute_status(t, lum, snd):
         return "NIGHT", "night"
     return "OK", "ok"
 
-
 def get_latest():
     return db.reference(PATH_LATEST).get() or {}
-
 
 def get_history_as_df(limit=200):
     hist = db.reference(PATH_HISTORY).get()
@@ -194,45 +177,23 @@ def get_history_as_df(limit=200):
 
     df = pd.DataFrame(rows)
 
-    # Colonnes attendues
+    # ✅ Colonnes attendues (match Node-RED : light)
     for c in ["temperature", "humidity", "luminosity", "sound", "timestamp"]:
         if c not in df.columns:
             df[c] = None
 
+    # ✅ Timestamp ms -> dt
     df["dt"] = df["timestamp"].apply(ts_to_dt)
     df = df.dropna(subset=["dt"]).sort_values("dt").tail(limit)
+
     return df
 
-
 def send_command(payload: dict):
-    """
-    ✅ Envoi commande LED / mode nuit / forceSend
-    - COMMAND_MODE="http"    -> POST Node-RED (Azure) sur port 1880
-    - COMMAND_MODE="firebase"-> écrit dans Firebase (node2/cmd)
-    """
     try:
-        enriched = dict(payload)
-        enriched["ts"] = int(time.time() * 1000)
-        enriched["src"] = "streamlit"
-
-        if COMMAND_MODE == "firebase":
-            db.reference(PATH_CMD).set(enriched)
-            return 200, "OK (firebase)"
-
-        # HTTP MODE
-        if not NODE_RED_URL:
-            return None, "NODE_RED_URL vide. Mets l'URL publique Node-RED (port 1880) dans Streamlit Secrets."
-
-        headers = {"Content-Type": "application/json"}
-        if API_KEY:
-            headers["X-API-KEY"] = API_KEY
-
-        r = requests.post(NODE_RED_URL, json=enriched, headers=headers, timeout=8)
+        r = requests.post(NODE_RED_URL, json=payload, timeout=5)
         return r.status_code, r.text
-
     except Exception as e:
         return None, str(e)
-
 
 def kpi_card(title, value, suffix="", sub=""):
     val = "—" if value is None else f"{value}{suffix}"
@@ -244,9 +205,8 @@ def kpi_card(title, value, suffix="", sub=""):
           <div class="kpi-sub">{sub}</div>
         </div>
         """,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True
     )
-
 
 # =========================
 # SIDEBAR COMMANDES
@@ -292,60 +252,52 @@ if st.sidebar.button("⚡ Force envoi données"):
     else:
         st.sidebar.error(f"Erreur: {code} / {txt}")
 
-debug = st.sidebar.toggle("Afficher DEBUG", value=False)
+# ✅ DEBUG toggle (très utile)
+debug = st.sidebar.toggle("Afficher DEBUG Firebase", value=False)
 
 st.sidebar.markdown("---")
-st.sidebar.caption("⚠️ Pour HTTP : Node-RED doit être accessible publiquement sur le port 1880.")
-st.sidebar.caption("1883 = MQTT broker (pas pour requests.post).")
-
-if debug:
-    st.sidebar.write("COMMAND_MODE:", COMMAND_MODE)
-    st.sidebar.write("NODE_RED_URL:", NODE_RED_URL if NODE_RED_URL else "VIDE")
-    st.sidebar.write("DATABASE_URL:", DATABASE_URL)
-    st.sidebar.write("PATH_LATEST:", PATH_LATEST)
-    st.sidebar.write("PATH_HISTORY:", PATH_HISTORY)
-    st.sidebar.write("PATH_CMD:", PATH_CMD)
-
+st.sidebar.caption("Endpoint Node-RED attendu : POST /api/node2/cmd")
 
 # =========================
 # HEADER
 # =========================
 colA, colB = st.columns([3, 1])
 with colA:
-    st.title(
-        "Projet final A304_A311 | "
+    st.title("Projet final A304_A311 | "
         "Systèmes Embarqués II et Industrie 4.0 | "
         "Système IOT Multizone | "
         "2025-2026 | "
-        "DIEMI MBUDI Calvin Node 2"
-    )
+        "DIEMI MBUDI Calvin Node 2")
     st.caption("Données temps réel (Firebase RTDB) + commandes LED RGB / mode nuit / force publish.")
 with colB:
     st.markdown(
         f'<div class="card">🔄 Rafraîchissement auto: <b>{int(REFRESH_MS/1000)}s</b><br/>'
         f'<span style="color:#94a3b8">Firebase RTDB</span></div>',
-        unsafe_allow_html=True,
+        unsafe_allow_html=True
     )
-
 
 # =========================
 # LOAD DATA
 # =========================
 latest = get_latest()
 
+if debug:
+    st.sidebar.write("PATH_LATEST:", PATH_LATEST)
+    st.sidebar.write("PATH_HISTORY:", PATH_HISTORY)
+    st.sidebar.write("latest:", latest)
+
 temp = safe_float(latest.get("temperature"))
-hum = safe_float(latest.get("humidity"))
-ldr = safe_int(latest.get("luminosity"))  # ok: ton Node-RED écrit "luminosity"
-son = safe_int(latest.get("sound"))
+hum  = safe_float(latest.get("humidity"))
+
+# ✅ Node-RED écrit "light" (pas luminosity)
+ldr  = safe_int(latest.get("luminosity"))
+
+son  = safe_int(latest.get("sound"))
 
 ts_raw = latest.get("timestamp", None)
 ts_dt = ts_to_dt(ts_raw) if ts_raw is not None else None
 
 status_txt, status_cls = compute_status(temp, ldr, son)
-
-if debug:
-    st.sidebar.write("latest:", latest)
-
 
 # =========================
 # KPI ROW
@@ -359,7 +311,7 @@ with k2:
 with k3:
     kpi_card("Luminosité", ldr, "", "LDR (0–4095)")
 with k4:
-    kpi_card("Son", son, "", "KY-038 (analogique)")
+    kpi_card("Son", son, "", "KY-038 (analog)")
 with k5:
     badge_html = f'<span class="badge {status_cls}">STATUT: {status_txt}</span>'
     ts_txt = "Aucun" if ts_dt is None else ts_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -371,9 +323,8 @@ with k5:
           <div class="kpi-sub">Horodatage : {ts_txt}</div>
         </div>
         """,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True
     )
-
 
 # =========================
 # HISTORIQUE
@@ -395,6 +346,7 @@ else:
 
     c3, c4 = st.columns(2)
     with c3:
+        # ✅ Node-RED écrit "light"
         fig = px.line(df, x="dt", y="luminosity", title="Luminosité")
         st.plotly_chart(fig, use_container_width=True)
     with c4:
