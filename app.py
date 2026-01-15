@@ -51,14 +51,9 @@ CUSTOM_CSS = """
 <style>
 :root{
   --bg:#0b1220;
-
-  /* ✅ Bleu foncé */
-  --blueDark:#0b2a5b;
-  --blueCard:#0f3a75;
-  --blueCard2:#0b2f63;
-
+  --card:#101a2f;
   --text:#e5e7eb;
-  --muted:#cbd5e1;
+  --muted:#94a3b8;
   --accent:#60a5fa;
   --good:#22c55e;
   --warn:#f59e0b;
@@ -69,36 +64,26 @@ CUSTOM_CSS = """
 .main { background: linear-gradient(135deg, #0b1220 0%, #0b1630 55%, #0b1220 100%); }
 .block-container { padding-top: 1.4rem; }
 
-/* ✅ TITRE EN BLEU FONCÉ + GRAS */
-h1 {
-  color: var(--blueDark) !important;
-  font-weight: 900 !important;
-  letter-spacing: 0.3px;
-}
-
-/* sous-titres */
-h2,h3 { color: var(--text) !important; }
+h1,h2,h3 { color: var(--text) !important; }
 p,div,span,label { color: var(--text); }
 
-/* ✅ CARTES KPI EN BLEU */
 .card{
-  background: linear-gradient(135deg, var(--blueCard) 0%, var(--blueCard2) 100%);
-  border: 1px solid rgba(96,165,250,0.35);
+  background: rgba(16,26,47,0.82);
+  border: 1px solid rgba(148,163,184,0.14);
   border-radius: 18px;
   padding: 16px 18px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.25);
 }
 
-.kpi-title{ font-size: 0.85rem; color: rgba(255,255,255,0.85); margin-bottom: 8px; }
-.kpi-value{ font-size: 2rem; font-weight: 900; color: #ffffff; line-height: 1; }
-.kpi-sub{ font-size: 0.85rem; color: rgba(255,255,255,0.75); margin-top: 6px; }
+.kpi-title{ font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; }
+.kpi-value{ font-size: 2rem; font-weight: 800; color: var(--text); line-height: 1; }
+.kpi-sub{ font-size: 0.85rem; color: var(--muted); margin-top: 6px; }
 
-/* Badges: on garde */
 .badge{
   display:inline-block;
   padding: 6px 10px;
   border-radius: 999px;
-  font-weight: 800;
+  font-weight: 700;
   font-size: 0.8rem;
   border: 1px solid rgba(148,163,184,0.18);
   background: rgba(15,23,42,0.65);
@@ -117,7 +102,6 @@ section[data-testid="stSidebar"]{
 }
 </style>
 """
-
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # Auto-refresh
