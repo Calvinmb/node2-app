@@ -15,7 +15,7 @@ DATABASE_URL = st.secrets["DATABASE_URL"]
 # URL Node-RED (HTTP endpoint)
 NODE_RED_URL = st.secrets.get("NODE_RED_URL", "http://172.161.163.190:1880/api/node2/cmd")
 
-# ✅ Chemins Firebase (d’après ta capture)
+# ✅ Chemins Firebase
 PATH_LATEST  = "node2/latest"
 PATH_HISTORY = "node2/history"
 
@@ -66,19 +66,11 @@ CUSTOM_CSS = """
   --violet:#a855f7;
 }
 
-.main { background: linear-gradient(135deg, #0b1220 0%, #0b1630 55%, #0b1220 100%); }
-.block-container { padding-top: 1.4rem; }
-
-/* ✅ TITRE EN BLEU FONCÉ + GRAS */
-h1 {
-  color: var(--blueDark) !important;
-  font-weight: 900 !important;
-  letter-spacing: 0.3px;
+/* ✅ Fond app (Streamlit récent) */
+[data-testid="stAppViewContainer"]{
+  background: linear-gradient(135deg, #0b1220 0%, #0b1630 55%, #0b1220 100%) !important;
 }
-
-/* sous-titres */
-h2,h3 { color: var(--text) !important; }
-p,div,span,label { color: var(--text); }
+.block-container { padding-top: 1.4rem; }
 
 /* ✅ CARTES KPI EN BLEU */
 .card{
@@ -93,7 +85,24 @@ p,div,span,label { color: var(--text); }
 .kpi-value{ font-size: 2rem; font-weight: 900; color: #ffffff; line-height: 1; }
 .kpi-sub{ font-size: 0.85rem; color: rgba(255,255,255,0.75); margin-top: 6px; }
 
-/* Badges: on garde */
+/* ✅ TITRE comme une carte KPI */
+.title-card{
+  padding: 18px 22px;
+  margin-bottom: 6px;
+}
+.title-text{
+  font-size: 2.0rem;
+  font-weight: 900;
+  color: #ffffff;
+  line-height: 1.15;
+}
+.title-sub{
+  margin-top: 6px;
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.75);
+}
+
+/* Badges */
 .badge{
   display:inline-block;
   padding: 6px 10px;
@@ -111,13 +120,13 @@ p,div,span,label { color: var(--text); }
 
 hr{ border: none; height: 1px; background: rgba(148,163,184,0.15); margin: 18px 0; }
 
+/* Sidebar */
 section[data-testid="stSidebar"]{
   background: rgba(10,16,31,0.92);
   border-right: 1px solid rgba(148,163,184,0.12);
 }
 </style>
 """
-
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # Auto-refresh
@@ -139,7 +148,7 @@ def safe_int(x):
         return None
 
 def ts_to_dt(val):
-    """✅ Convertit timestamp en datetime (supporte ms et secondes)."""
+    """Convertit timestamp en datetime (supporte ms et secondes)."""
     try:
         v = float(val)
         if v > 1e12:      # ms (Date.now)
@@ -177,15 +186,16 @@ def get_history_as_df(limit=200):
 
     df = pd.DataFrame(rows)
 
-    # ✅ Colonnes attendues (match Node-RED)
+    # ✅ Si Node-RED écrit "light" au lieu de "luminosity", on harmonise
+    if "light" in df.columns and "luminosity" not in df.columns:
+        df["luminosity"] = df["light"]
+
     for c in ["temperature", "humidity", "luminosity", "sound", "timestamp"]:
         if c not in df.columns:
             df[c] = None
 
-    # ✅ Timestamp ms -> dt
     df["dt"] = df["timestamp"].apply(ts_to_dt)
     df = df.dropna(subset=["dt"]).sort_values("dt").tail(limit)
-
     return df
 
 def send_command(payload: dict):
@@ -252,26 +262,40 @@ if st.sidebar.button("⚡ Force envoi données"):
     else:
         st.sidebar.error(f"Erreur: {code} / {txt}")
 
-# ✅ DEBUG toggle
 debug = st.sidebar.toggle("Afficher DEBUG Firebase", value=False)
 
 st.sidebar.markdown("---")
 st.sidebar.caption("Endpoint Node-RED attendu : POST /api/node2/cmd")
 
 # =========================
-# HEADER
+# HEADER (Titre en carte KPI)
 # =========================
+TITLE = (
+    "Projet final A304_A311 | Systèmes Embarqués II et Industrie 4.0 | "
+    "Système IOT Multizone | 2025-2026 | DIEMI MBUDI Calvin Node 2"
+)
+
 colA, colB = st.columns([3, 1])
 with colA:
-    # ✅ Titre en gras (Markdown)
     st.markdown(
-        "# **Projet final A304_A311 | Systèmes Embarqués II et Industrie 4.0 | Système IOT Multizone | 2025-2026 | DIEMI MBUDI Calvin Node 2**"
+        f"""
+        <div class="card title-card">
+          <div class="title-text">{TITLE}</div>
+          <div class="title-sub">
+            Données temps réel (Firebase RTDB) + commandes LED RGB / mode nuit / force publish.
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True
     )
-    st.caption("Données temps réel (Firebase RTDB) + commandes LED RGB / mode nuit / force publish.")
 with colB:
     st.markdown(
-        f'<div class="card">🔄 Rafraîchissement auto: <b>{int(REFRESH_MS/1000)}s</b><br/>'
-        f'<span style="color:#94a3b8">Firebase RTDB</span></div>',
+        f"""
+        <div class="card">
+          🔄 Rafraîchissement auto: <b>{int(REFRESH_MS/1000)}s</b><br/>
+          <span style="color:rgba(255,255,255,0.75)">Firebase RTDB</span>
+        </div>
+        """,
         unsafe_allow_html=True
     )
 
@@ -287,7 +311,10 @@ if debug:
 
 temp = safe_float(latest.get("temperature"))
 hum  = safe_float(latest.get("humidity"))
-ldr  = safe_int(latest.get("luminosity"))  # ✅ ok si tu envoies "luminosity" dans Firebase
+
+# ✅ supporte "luminosity" OU "light"
+ldr  = safe_int(latest.get("luminosity", latest.get("light")))
+
 son  = safe_int(latest.get("sound"))
 
 ts_raw = latest.get("timestamp", None)
