@@ -177,7 +177,7 @@ def get_history_as_df(limit=200):
 
     df = pd.DataFrame(rows)
 
-    # ✅ Colonnes attendues (match Node-RED : light)
+    # ✅ Colonnes attendues (match Node-RED)
     for c in ["temperature", "humidity", "luminosity", "sound", "timestamp"]:
         if c not in df.columns:
             df[c] = None
@@ -252,7 +252,7 @@ if st.sidebar.button("⚡ Force envoi données"):
     else:
         st.sidebar.error(f"Erreur: {code} / {txt}")
 
-# ✅ DEBUG toggle (très utile)
+# ✅ DEBUG toggle
 debug = st.sidebar.toggle("Afficher DEBUG Firebase", value=False)
 
 st.sidebar.markdown("---")
@@ -263,11 +263,10 @@ st.sidebar.caption("Endpoint Node-RED attendu : POST /api/node2/cmd")
 # =========================
 colA, colB = st.columns([3, 1])
 with colA:
-    st.title("Projet final A304_A311 | "
-        "Systèmes Embarqués II et Industrie 4.0 | "
-        "Système IOT Multizone | "
-        "2025-2026 | "
-        "DIEMI MBUDI Calvin Node 2")
+    # ✅ Titre en gras (Markdown)
+    st.markdown(
+        "# **Projet final A304_A311 | Systèmes Embarqués II et Industrie 4.0 | Système IOT Multizone | 2025-2026 | DIEMI MBUDI Calvin Node 2**"
+    )
     st.caption("Données temps réel (Firebase RTDB) + commandes LED RGB / mode nuit / force publish.")
 with colB:
     st.markdown(
@@ -288,10 +287,7 @@ if debug:
 
 temp = safe_float(latest.get("temperature"))
 hum  = safe_float(latest.get("humidity"))
-
-# ✅ Node-RED écrit "light" (pas luminosity)
-ldr  = safe_int(latest.get("luminosity"))
-
+ldr  = safe_int(latest.get("luminosity"))  # ✅ ok si tu envoies "luminosity" dans Firebase
 son  = safe_int(latest.get("sound"))
 
 ts_raw = latest.get("timestamp", None)
@@ -339,19 +335,18 @@ else:
     c1, c2 = st.columns(2)
     with c1:
         fig = px.line(df, x="dt", y="temperature", title="Température")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")  # ✅ MODIF
     with c2:
         fig = px.line(df, x="dt", y="humidity", title="Humidité")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")  # ✅ MODIF
 
     c3, c4 = st.columns(2)
     with c3:
-        # ✅ Node-RED écrit "light"
         fig = px.line(df, x="dt", y="luminosity", title="Luminosité")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")  # ✅ MODIF
     with c4:
         fig = px.line(df, x="dt", y="sound", title="Son")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")  # ✅ MODIF
 
     with st.expander("Voir les données"):
-        st.dataframe(df)
+        st.dataframe(df, width="stretch")  # ✅ MODIF
